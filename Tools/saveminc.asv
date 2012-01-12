@@ -1,0 +1,142 @@
+function wresult = saveminc(outputfilename,imaVOL,scaninfo)
+% function wresult = saveminc(outputfilename,imaVOL,scaninfo)
+%
+% Matlab function to save minc format output file. 
+% This function use the emma_v0_9_5 utility from MNI.
+%
+% Matlab library function for MIA_gui utility. 
+% University of Debrecen, PET Center/LB 2003
+wresult = -1;
+
+isEmmaExist = which('openimage');
+if isempty(isEmmaExist);
+    imaVOL = [];scaninfo = [];
+    disp('');
+    disp('For saving a minc formatted file you should', ...
+    'install the EMMA package from MNI,');
+    disp('and include the micreateimage.exe program of EMMA to the OS PATH');
+    disp('');
+    return;
+else
+    [pathstr, name, ext] = fileparts(isEmmaExist);
+    [sysres sysresout] = system(['micreateimage.exe -help']);
+    mincstring = findstr('MINC file',sysresout);
+    if isempty(mincstring)
+       imaVOL = [];scaninfo = [];
+       disp(''); 
+       disp('For saving minc file you should include the micreateimage.exe');
+       disp('program of EMMA package to the OS PATH.');
+       disp('');
+       return;
+    end
+end
+
+if scaninfo.Frames > 1
+    hm = msgbox('Dynamic file cannot be saved.','MIA Info' );
+    wresult = 0;
+    return;
+end
+
+jobinfo =1;
+% SETTING UP THE PROGRESS BAR
+if jobinfo
+    info.color=[1 0 0];
+	info.title='Saving minc file';
+	info.size=1;
+    info.pos='topleft';
+	p=progbar(info);
+	progbar(p,0);
+end
+
+dims =  [scaninfo.imfm scaninfo.num_of_slice 1];
+ValidRange = double([min(imaVOL(:)) max(imaVOL(:))]);
+if ValidRange(1) < -2^16/2  | ValidRange(2) > 2^16/2
+       imaVOL = [];scaninfo = [];
+       disp(''); 
+       disp('For saving minc file the pixel values');
+       disp('should be between [-2^16/2 2^16/2]');
+       disp('Use the ''rescale'' menu item from the ''Tools Menu''');
+       disp('');
+       close(p);
+       return;
+end
+% Rescale the pixel value to shift the negative values to positive 
+% imaVOL = imaVOL + abs(min(imaVOL)), if min(imaVOL) < 0. There are problems to save
+% imaVOL as mnc file. The quantity of the pixel WILL NOT be true in the
+% minc file. 2005.07.27
+
+if ValidRange(1) < 0
+    imaVOL = uint16(double(imaVOL) + double(abs(ValidRange(1))));
+    ValidRange(1) = 0;
+end
+
+imaout = flipdim(permute(flipdim(imaVOL,2),[2 1 3]),2);
+%imaout = flipdim(imaVOL,2);
+progbar(p,3);drawnow;
+%
+% the program use the 'template.mnc' file for header generation
+% that should reside on the ..\private subdirectory of mia matlab path
+%
+% pp = path;
+% emmapos = findstr(pp,'emmanew');
+% if ispc
+%     dotpos = findstr(pp(1:emmapos+6),';');
+% elseif isunix
+%     dotpos = findstr(pp(1:emmapos+6),':');
+% end
+% if not(isempty(dotpos))
+%     emmapath = pp(dotpos(end)+1:emmapos+6);
+% else
+%     emmapath = pp(1:emmapos+6);
+% end
+% if ispc
+%     hmnc = newimage(outputfilename,[0 scaninfo.num_of_slice],[emmapath,'\template.mnc'],[],ValidRange);
+% elseif isunix % very site specific !!!!
+%     hmnc = newimage(outputfilename,[0 scaninfo.num_of_slice],[emmapath,'/template.mnc'],[],ValidRange);
+% end
+
+
+mnctemplatepath  = which('template.mnc');
+hmnc = newimage(outputfilename,[0 scaninfo.num_of_slice],mnctemplatepath,[],ValidRange);
+closeimage(hmnc);
+
+warning off MATLAB:nonIntegerTruncatedInConversionToChar;
+% find the x,y,z - space mnemonics and write the current values
+mncpid = fopen(outputfilename,'r+','ieee-be.l64');
+hmnc = fread(mncpid,4096,'char')';
+z_pos = findstr(char(hmnc),'zspace');
+y_pos = findstr(char(hmnc),'yspace');
+x_pos = findstr(char(hmnc),'xspace');
+mnem_shift=9;
+fseek(mncpid,z_pos(1)+mnem_shift,-1); fwrite(mncpid,scaninfo.num_of_slice,'int16');
+fseek(mncpid,y_pos(1)+mnem_shift,-1);fwrite(mncpid,scaninfo.imfm(1),'int16');
+fseek(mncpid,x_pos(1)+mnem_shift,-1);fwrite(mncpid,scaninfo.imfm(2),'int16');
+
+% find the x,y,z - step mnemonics and write the current values
+step_pos = findstr(char(hmnc),'step');
+mnem_shift=11;
+for i=1: 3
+    fseek(mncpid,step_pos(i)+mnem_shift,-1);
+    fwrite(mncpid,scaninfo.pixsize(4-i),'float64');
+end
+% find the x,y,z - start mnemonics and write the current values
+step_pos = findstr(char(hmnc),'start');
+mnem_shift=11;
+for i=1: 3
+    fseek(mncpid,step_pos(i)+mnem_shift,-1);
+    fwrite(mncpid,scaninfo.pixsize(4-i),'float64');
+end
+fclose(mncpid);
+
+% write the images to the minc file
+hmnc = openimage(outputfilename,'w');
+for i=1:scaninfo.num_of_slice
+    putimages(hmnc,reshape(double(imaout(:,:,i)),[double(scaninfo.imfm(1))*double(scaninfo.imfm(2)) 1]),i);
+    if mod(i,5) == 0 
+        progbar(p,round(i/scaninfo.num_of_slice*100));drawnow;
+    end
+end
+closeimage(hmnc);
+wresult = 0;
+close(p);
+

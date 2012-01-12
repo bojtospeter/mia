@@ -1,0 +1,37 @@
+CurrentDate =       	 19-Feb-2009 13:30:15     
+
+Image file used for ROI statistics: 
+	"F:\\DICOM\S72710\S81080\I10"
+
+Background variability = 	     21.30	
+
+	Results for sphere "1".: 
+         Contrast = 	     29.63	
+  ROI variability = 	     17.12	
+
+
+	Results for sphere "2".: 
+         Contrast = 	     45.01	
+  ROI variability = 	     27.04	
+
+
+	Results for sphere "3".: 
+         Contrast = 	     47.75	
+  ROI variability = 	     21.71	
+
+
+	Results for sphere "4".: 
+         Contrast = 	     52.26	
+  ROI variability = 	     24.07	
+
+
+	Results for sphere "5".: 
+         Contrast = 	    -31.93	
+  ROI variability = 	    458.20	
+
+
+	Results for sphere "6".: 
+         Contrast = 	    -31.36	
+  ROI variability = 	    409.02	
+
+
